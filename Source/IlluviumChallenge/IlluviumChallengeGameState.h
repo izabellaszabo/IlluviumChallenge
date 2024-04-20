@@ -4,6 +4,8 @@
 #include "GameFramework/GameStateBase.h"
 #include "IlluviumChallengeGameState.generated.h"
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FNextTimeStep);
+
 /**
  * 
  */
@@ -17,6 +19,8 @@ public:
 	UPROPERTY(EditDefaultsOnly) int TimeStepInMS = 100;
 	// How long to let the game startup before starting gameplay
 	UPROPERTY(EditDefaultsOnly) float SecondsBeforeStartingGame = 3;
+
+	FNextTimeStep OnNextTimeStep;
 
 protected:
 	void BeginPlay() override;

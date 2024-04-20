@@ -19,6 +19,7 @@ void AIlluviumChallengeGameState::StartGame()
 void AIlluviumChallengeGameState::DoTimeStep()
 {
 	CurrentTimeStep++;
+	OnNextTimeStep.Broadcast();
 
-	UE_LOG(LogTemp, Warning, TEXT("CurrentTimeStep = %d, WorldTime = %f"), CurrentTimeStep, UKismetSystemLibrary::GetGameTimeInSeconds(GetWorld()))
+	//UE_LOG(LogTemp, Warning, TEXT("CurrentTimeStep = %d, WorldTime = %f"), CurrentTimeStep, UKismetSystemLibrary::GetGameTimeInSeconds(GetWorld()))
 }

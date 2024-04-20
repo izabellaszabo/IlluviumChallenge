@@ -10,7 +10,5 @@ class AIlluviumChallengeGameMode : public AGameModeBase
 
 public:
 	AIlluviumChallengeGameMode();
+
 };
-
-
-
