@@ -16,11 +16,12 @@ class AIlluviumGrid : public AActor
 public:	
 	AIlluviumGrid();
 
-	UPROPERTY(EditDefaultsOnly) int GridXSize = 100;
-	UPROPERTY(EditDefaultsOnly) int GridYSize = 100;
+	UPROPERTY(EditDefaultsOnly, Category = "Setup") int GridXSize = 100;
+	UPROPERTY(EditDefaultsOnly, Category = "Setup") int GridYSize = 100;
 	// The size of a single grid square in unreal units - I have manually set this to match up with the size of the grid mesh on the material with scale (10, 10, 1)
-	UPROPERTY(EditDefaultsOnly) int GridSquareSize = 10;
-	UPROPERTY(EditDefaultsOnly) int GridHeight = 100;
+	UPROPERTY(EditDefaultsOnly, Category = "Setup") int GridSquareSize = 10;
+	// The height of the grid grid itself in unreal units - I have manually set this to match up with the size of the grid mesh with scale (10, 10, 1)
+	UPROPERTY(EditDefaultsOnly, Category = "Setup") int GridHeight = 100;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) UStaticMeshComponent* GridMesh = nullptr;
 

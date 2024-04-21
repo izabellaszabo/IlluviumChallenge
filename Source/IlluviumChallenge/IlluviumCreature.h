@@ -10,9 +10,15 @@ UENUM(BlueprintType)
 enum class ECreatureTeam :uint8
 {
 	TeamRed,
-	TeamBlue
+	TeamBlue,
+	None
 };
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FCreatureDied, ECreatureTeam, TeamParam);
+
+/**
+* An Illuvium creature finds an enemy creature, moves towards it on the IlluviumGrid, and attacks its target until it or itself dies.
+*/
 UCLASS()
 class AIlluviumCreature : public AActor
 {
@@ -21,33 +27,33 @@ class AIlluviumCreature : public AActor
 public:	
 	AIlluviumCreature();
 	void InitCreature(ECreatureTeam NewTeam, int RandomSeed);
+	float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) UStaticMeshComponent* CreatureMesh = nullptr;
 	UPROPERTY(EditDefaultsOnly) UMaterialInstance* RedMaterial = nullptr;
 	UPROPERTY(EditDefaultsOnly) UMaterialInstance* BlueMaterial = nullptr;
 
-	UPROPERTY(EditDefaultsOnly) int MaxHealth = 10;
 	// Measured in Grid Squares
 	UPROPERTY(EditDefaultsOnly) int AttackDistance = 2;
-	// How many grid squares we can move in a time step
+	UPROPERTY(EditDefaultsOnly) int TimeStepsPerAttack = 3;
+	UPROPERTY(EditDefaultsOnly) int MaxHealth = 10;
 	UPROPERTY(EditDefaultsOnly) float MoveGridSquaresPerTimeStep = 1;
 
-	// Unreal Engine function from AActor
-	float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;
-
-	// Getter functions
-	FVector2D GetCoordinates();
+	// Delegate
+	FCreatureDied OnCreatureDied;
+	ECreatureTeam GetTeam();
 
 protected:
 	virtual void BeginPlay() override;
 
 private:
-	ECreatureTeam Team = ECreatureTeam::TeamBlue;
+	UPROPERTY(Replicated, ReplicatedUsing=OnRep_Team) ECreatureTeam Team = ECreatureTeam::None;
+	UPROPERTY(Replicated, ReplicatedUsing=OnRep_RandomSeed) int RandomSeed = -1;
 	UFUNCTION() void OnTimeStep();
 
 	// Initial setup functions
-	void SetTeam(ECreatureTeam NewTeam);
-	void SetRandomSeed(int Seed);
+	UFUNCTION() void OnRep_Team();
+	UFUNCTION() void OnRep_RandomSeed();
 	void SetInitialLocation();
 	void SetGridRef();
 	void SetAttackStrength();
@@ -55,18 +61,18 @@ private:
 	// Target finding
 	AIlluviumCreature* EnemyTarget = nullptr;
 	AIlluviumGrid* Grid = nullptr;
-	bool IsTargetInRange = false;
 	FVector2D CurrentCoord = FVector2D::ZeroVector;
+	bool IsTargetInRange = false;
 	void FindTarget();
 	void MoveTowardsTarget();
 
 	// Attack
-	int AttackStrength = -1;	
+	int AttackStrength = -1;
+	int AttackCharge = -1;
 	void Attack();
 
-	// Health and Death
+	// Health and death
 	int CurrentHealth = -1;
 	bool IsDead = false;
 	void Die();
-
 };

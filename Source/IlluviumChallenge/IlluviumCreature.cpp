@@ -3,10 +3,13 @@
 #include "IlluviumChallengeGameState.h"
 #include "Kismet/GameplayStatics.h"
 #include "IlluviumGrid.h"
+#include "Net/UnrealNetwork.h"
 
 AIlluviumCreature::AIlluviumCreature()
 {
 	PrimaryActorTick.bCanEverTick = false;
+	// Needed so actor spawns on Clients too
+	bReplicates = true;
 
 	CreatureMesh = CreateDefaultSubobject<UStaticMeshComponent>("CreatureMeshComponent");
 	SetRootComponent(CreatureMesh);
@@ -15,6 +18,8 @@ AIlluviumCreature::AIlluviumCreature()
 void AIlluviumCreature::BeginPlay()
 {
 	Super::BeginPlay();
+
+	CurrentHealth = MaxHealth;
 	
 	auto gs = GetWorld()->GetGameState<AIlluviumChallengeGameState>();
 	if (gs)
@@ -23,12 +28,29 @@ void AIlluviumCreature::BeginPlay()
 		UE_LOG(LogTemp, Error, TEXT("IlluviumCreature: No AIlluviumChallengeGameState found"))
 }
 
-void AIlluviumCreature::InitCreature(ECreatureTeam NewTeam, int RandomSeed)
+ECreatureTeam AIlluviumCreature::GetTeam()
 {
-	CurrentHealth = MaxHealth;
+	return Team;
+}
+
+void AIlluviumCreature::InitCreature(ECreatureTeam NewTeam, int RandomSeedLoc)
+{
+	Team = NewTeam;
+	OnRep_Team(); // Calling because if its standalone, the onrep wouldnt get called
+	RandomSeed = RandomSeedLoc;
+	OnRep_RandomSeed();
+}
+
+void AIlluviumCreature::OnRep_Team()
+{
+	auto mat = Team == ECreatureTeam::TeamBlue ? BlueMaterial : RedMaterial;
+	CreatureMesh->SetMaterial(0, mat);
+}
+
+void AIlluviumCreature::OnRep_RandomSeed()
+{
+	FMath::SRandInit(RandomSeed);
 	SetGridRef();
-	SetTeam(NewTeam);
-	SetRandomSeed(RandomSeed);
 	SetInitialLocation();
 	SetAttackStrength();
 }
@@ -39,25 +61,13 @@ void AIlluviumCreature::SetGridRef()
 	Grid = Cast<AIlluviumGrid>(a);
 }
 
-void AIlluviumCreature::SetTeam(ECreatureTeam NewTeam)
-{
-	Team = NewTeam;
-	auto mat = Team == ECreatureTeam::TeamBlue ? BlueMaterial : RedMaterial;
-	CreatureMesh->SetMaterial(0, mat);
-}
-
-void AIlluviumCreature::SetRandomSeed(int Seed)
-{
-	FMath::SRandInit(Seed);
-}
-
 void AIlluviumCreature::SetInitialLocation()
 {
 	auto XCoord = FMath::RoundToInt(FMath::SRand() * Grid->GridXSize);
 	auto YCoord = FMath::RoundToInt(FMath::SRand() * Grid->GridXSize);
 	CurrentCoord = FVector2D(XCoord, YCoord);
 	SetActorLocation(Grid->GetWorldLocationForCoord(CurrentCoord));
-	UE_LOG(LogTemp, Warning, TEXT("Initial Coord = %f %f"), CurrentCoord.X, CurrentCoord.Y)
+	//UE_LOG(LogTemp, Warning, TEXT("Initial Coord = %f %f"), CurrentCoord.X, CurrentCoord.Y)
 }
 
 void AIlluviumCreature::SetAttackStrength()
@@ -67,7 +77,7 @@ void AIlluviumCreature::SetAttackStrength()
 	FVector2D out(2.0f, 5.0f);
 	auto mappedAttack = FMath::GetMappedRangeValueClamped(in, out, initialAttack);
 	AttackStrength = FMath::RoundToInt(mappedAttack);
-	UE_LOG(LogTemp, Warning, TEXT("Attack Set: %d"), AttackStrength)
+	//UE_LOG(LogTemp, Warning, TEXT("Attack Set: %d"), AttackStrength)
 }
 
 void AIlluviumCreature::OnTimeStep()
@@ -112,15 +122,10 @@ void AIlluviumCreature::FindTarget()
 	}
 
 	EnemyTarget = ClosestCreature;
-	if(EnemyTarget)
-		UE_LOG(LogTemp, Warning, TEXT("Enemy Target Found"))
-	else
-		UE_LOG(LogTemp, Warning, TEXT("Enemy Target NOT Found"))
-}
-
-FVector2D AIlluviumCreature::GetCoordinates()
-{
-	return CurrentCoord;
+	//if(EnemyTarget)
+	//	UE_LOG(LogTemp, Warning, TEXT("Enemy Target Found %s"), *EnemyTarget->GetName())
+	//else
+	//	UE_LOG(LogTemp, Warning, TEXT("Enemy Target NOT Found"))
 }
 
 void AIlluviumCreature::MoveTowardsTarget()
@@ -128,7 +133,7 @@ void AIlluviumCreature::MoveTowardsTarget()
 	if (!EnemyTarget || IsTargetInRange)
 		return;
 
-	auto EnemyCoords = EnemyTarget->GetCoordinates();
+	auto EnemyCoords = EnemyTarget->CurrentCoord;
 	auto CloseEnough = true;
 
 	auto xDist = FMath::Abs(EnemyCoords.X - CurrentCoord.X);
@@ -153,7 +158,7 @@ void AIlluviumCreature::MoveTowardsTarget()
 
 	IsTargetInRange = CloseEnough;
 
-	UE_LOG(LogTemp, Warning, TEXT("New Coord = %f %f"), CurrentCoord.X, CurrentCoord.Y)
+	//UE_LOG(LogTemp, Warning, TEXT("New Coord = %f %f"), CurrentCoord.X, CurrentCoord.Y)
 
 	SetActorLocation(Grid->GetWorldLocationForCoord(CurrentCoord));
 }
@@ -163,19 +168,31 @@ void AIlluviumCreature::Attack()
 	if (!IsTargetInRange || !EnemyTarget)
 		return;
 
-	UGameplayStatics::ApplyDamage(EnemyTarget, AttackStrength, nullptr, this, UDamageType::StaticClass());
+	auto scale = GetActorScale();
+	if (AttackCharge == -1)
+		SetActorScale3D(FVector(scale.X, scale.Y, scale.Z * 3));
 
-	if (EnemyTarget->IsDead)
-		EnemyTarget = nullptr;
+	AttackCharge++;
 
-	UE_LOG(LogTemp, Warning, TEXT("Attacking"))
+	if (AttackCharge == TimeStepsPerAttack)
+	{
+		UGameplayStatics::ApplyDamage(EnemyTarget, AttackStrength, nullptr, this, UDamageType::StaticClass());
+
+		if (EnemyTarget->IsDead)
+			EnemyTarget = nullptr;
+
+		AttackCharge = -1;
+		SetActorScale3D(FVector(scale.X, scale.Y, scale.Z / 3));
+	}
+
+	//UE_LOG(LogTemp, Warning, TEXT("Attacking"))
 }
 
 float AIlluviumCreature::TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser)
 {
 	CurrentHealth -= DamageAmount;
-	UE_LOG(LogTemp, Warning, TEXT("Took damage: %f"), DamageAmount)
-	
+	//UE_LOG(LogTemp, Warning, TEXT("Took damage: %f"), DamageAmount)
+
 	if (CurrentHealth <= 0)
 		Die();
 
@@ -185,11 +202,20 @@ float AIlluviumCreature::TakeDamage(float DamageAmount, struct FDamageEvent cons
 void AIlluviumCreature::Die()
 {
 	IsDead = true;
-	SetCanBeDamaged(false);
+	OnCreatureDied.Broadcast(Team);
+	auto scale = GetActorScale();
+	SetActorScale3D(FVector(scale.X, scale.Y, 0.01));
 
 	// Could Unsubscribe from GameState's OnNextTimeStep delegate if creature can never respawn
 	// gs->OnNextTimeStep.RemoveDynamic(this, &AIlluviumCreature::OnTimeStep);
 	// Or could also Destroy Creature after a delay for example
 
-	UE_LOG(LogTemp, Warning, TEXT("Died"))
+	//UE_LOG(LogTemp, Warning, TEXT("Died"))
+}
+
+void AIlluviumCreature::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(AIlluviumCreature, Team);
+	DOREPLIFETIME(AIlluviumCreature, RandomSeed);
 }

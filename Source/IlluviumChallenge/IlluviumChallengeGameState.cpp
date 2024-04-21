@@ -14,12 +14,17 @@ void AIlluviumChallengeGameState::StartGame()
 {
 	float IntervalInSeconds = (float)TimeStepInMS / 1000.0f;
 	GetWorld()->GetTimerManager().SetTimer(TimeStepHandle, this, &AIlluviumChallengeGameState::DoTimeStep, IntervalInSeconds, true);
+
+	UE_LOG(LogTemp, Warning, TEXT("Starting Game"))
 }
 
 void AIlluviumChallengeGameState::DoTimeStep()
 {
-	CurrentTimeStep++;
 	OnNextTimeStep.Broadcast();
+}
 
-	//UE_LOG(LogTemp, Warning, TEXT("CurrentTimeStep = %d, WorldTime = %f"), CurrentTimeStep, UKismetSystemLibrary::GetGameTimeInSeconds(GetWorld()))
+void AIlluviumChallengeGameState::Multicast_StopGame_Implementation(const FString& Team)
+{
+	TimeStepHandle.Invalidate();
+	UE_LOG(LogTemp, Warning, TEXT(" %s team WINS!"), *Team)
 }

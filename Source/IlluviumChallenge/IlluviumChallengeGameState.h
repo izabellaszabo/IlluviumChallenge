@@ -7,7 +7,8 @@
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FNextTimeStep);
 
 /**
- * 
+ * The gamestate's main function is the TimeStep timer that runs at the required interval. 
+ * It broadcasts the next TimeStep to any actors who are subscribed to the delegate.
  */
 UCLASS()
 class AIlluviumChallengeGameState : public AGameStateBase
@@ -16,22 +17,21 @@ class AIlluviumChallengeGameState : public AGameStateBase
 
 public:
 	// How often should a TimeStep happend
-	UPROPERTY(EditDefaultsOnly) int TimeStepInMS = 100;
+	UPROPERTY(EditDefaultsOnly, Category = "Setup") int TimeStepInMS = 100;
 	// How long to let the game startup before starting gameplay
-	UPROPERTY(EditDefaultsOnly) float SecondsBeforeStartingGame = 3;
+	UPROPERTY(EditDefaultsOnly, Category = "Setup") float SecondsBeforeStartingGame = 3;
 
+	// Delegate
 	FNextTimeStep OnNextTimeStep;
+
+	UFUNCTION(NetMulticast, Reliable) void Multicast_StopGame(const FString& Team);
 
 protected:
 	void BeginPlay() override;
 
 private:
-	// Starts the TimeSteps
-	UFUNCTION() void StartGame();
+	void StartGame();
 
 	FTimerHandle TimeStepHandle;
 	UFUNCTION() void DoTimeStep();
-
-	// Might need to use a bigger type, like long if game can run for longer periods of time
-	int CurrentTimeStep = 0;
 };
