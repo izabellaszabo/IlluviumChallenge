@@ -7,15 +7,14 @@ AIlluviumGrid::AIlluviumGrid()
 
 	GridMesh = CreateDefaultSubobject<UStaticMeshComponent>("GridMeshComponent");
 	SetRootComponent(GridMesh);
-
-	GridMesh->SetWorldScale3D(FVector(GridXScale, GridYScale, 1));
 }
 
 FVector AIlluviumGrid::GetWorldLocationForCoord(FVector2D coord)
 {
+	auto GridCenterOffset = GridSquareSize / 2;
 	auto WorldLoc = GetActorLocation();
-	WorldLoc.X += coord.X * GridSquareSize;
-	WorldLoc.Y += coord.Y * GridSquareSize;
+	WorldLoc.X += (coord.X * GridSquareSize) + GridCenterOffset;
+	WorldLoc.Y += (coord.Y * GridSquareSize) + GridCenterOffset;
 	WorldLoc.Z += GridHeight;
 	return WorldLoc;
 }

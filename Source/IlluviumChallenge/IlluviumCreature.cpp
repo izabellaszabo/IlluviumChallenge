@@ -21,20 +21,53 @@ void AIlluviumCreature::BeginPlay()
 		gs->OnNextTimeStep.AddDynamic(this, &AIlluviumCreature::OnTimeStep);	
 	else
 		UE_LOG(LogTemp, Error, TEXT("IlluviumCreature: No AIlluviumChallengeGameState found"))
+}
 
+void AIlluviumCreature::InitCreature(ECreatureTeam NewTeam, int RandomSeed)
+{
 	CurrentHealth = MaxHealth;
 	SetGridRef();
-
-	// TODO
-	CurrentCoord = FVector2D(FMath::RandRange(0, 100), FMath::RandRange(0, 100));
-	SetActorLocation(Grid->GetWorldLocationForCoord(CurrentCoord));
-	UE_LOG(LogTemp, Warning, TEXT("Initial Coord = %f %f"), CurrentCoord.X, CurrentCoord.Y)
+	SetTeam(NewTeam);
+	SetRandomSeed(RandomSeed);
+	SetInitialLocation();
+	SetAttackStrength();
 }
 
 void AIlluviumCreature::SetGridRef()
 { 
 	auto a = UGameplayStatics::GetActorOfClass(GetWorld(), AIlluviumGrid::StaticClass());
 	Grid = Cast<AIlluviumGrid>(a);
+}
+
+void AIlluviumCreature::SetTeam(ECreatureTeam NewTeam)
+{
+	Team = NewTeam;
+	auto mat = Team == ECreatureTeam::TeamBlue ? BlueMaterial : RedMaterial;
+	CreatureMesh->SetMaterial(0, mat);
+}
+
+void AIlluviumCreature::SetRandomSeed(int Seed)
+{
+	FMath::SRandInit(Seed);
+}
+
+void AIlluviumCreature::SetInitialLocation()
+{
+	auto XCoord = FMath::RoundToInt(FMath::SRand() * Grid->GridXSize);
+	auto YCoord = FMath::RoundToInt(FMath::SRand() * Grid->GridXSize);
+	CurrentCoord = FVector2D(XCoord, YCoord);
+	SetActorLocation(Grid->GetWorldLocationForCoord(CurrentCoord));
+	UE_LOG(LogTemp, Warning, TEXT("Initial Coord = %f %f"), CurrentCoord.X, CurrentCoord.Y)
+}
+
+void AIlluviumCreature::SetAttackStrength()
+{
+	auto initialAttack = FMath::SRand();
+	FVector2D in (0.0f, 1.0f);
+	FVector2D out(2.0f, 5.0f);
+	auto mappedAttack = FMath::GetMappedRangeValueClamped(in, out, initialAttack);
+	AttackStrength = FMath::RoundToInt(mappedAttack);
+	UE_LOG(LogTemp, Warning, TEXT("Attack Set: %d"), AttackStrength)
 }
 
 void AIlluviumCreature::OnTimeStep()
@@ -79,9 +112,10 @@ void AIlluviumCreature::FindTarget()
 	}
 
 	EnemyTarget = ClosestCreature;
-
-	auto msg = EnemyTarget ? "Found" : "Not Found";
-	UE_LOG(LogTemp, Warning, TEXT("Enemy Target %s"), msg)
+	if(EnemyTarget)
+		UE_LOG(LogTemp, Warning, TEXT("Enemy Target Found"))
+	else
+		UE_LOG(LogTemp, Warning, TEXT("Enemy Target NOT Found"))
 }
 
 FVector2D AIlluviumCreature::GetCoordinates()
@@ -97,18 +131,22 @@ void AIlluviumCreature::MoveTowardsTarget()
 	auto EnemyCoords = EnemyTarget->GetCoordinates();
 	auto CloseEnough = true;
 
-	if (FMath::Abs(EnemyCoords.X - CurrentCoord.X) > AttackDistance)
+	auto xDist = FMath::Abs(EnemyCoords.X - CurrentCoord.X);
+	if (xDist > AttackDistance)
 	{
-		auto DirX = FMath::Sign(EnemyCoords.X - CurrentCoord.X);
-		CurrentCoord.X += MoveGridSquaresPerTimeStep * DirX;
+		auto dir = FMath::Sign(EnemyCoords.X - CurrentCoord.X);
+		auto dist = FMath::Min(xDist, MoveGridSquaresPerTimeStep);
+		CurrentCoord.X += dist * dir;
 
 		CloseEnough = false;
 	}
 
-	if (FMath::Abs(EnemyCoords.Y - CurrentCoord.Y) > AttackDistance)
+	auto yDist = FMath::Abs(EnemyCoords.Y - CurrentCoord.Y);
+	if (yDist > AttackDistance)
 	{
 		auto dir = FMath::Sign(EnemyCoords.Y - CurrentCoord.Y);
-		CurrentCoord.Y += MoveGridSquaresPerTimeStep * dir;
+		auto dist = FMath::Min(yDist, MoveGridSquaresPerTimeStep);
+		CurrentCoord.Y += dist * dir;
 
 		CloseEnough = false;
 	}
@@ -122,10 +160,13 @@ void AIlluviumCreature::MoveTowardsTarget()
 
 void AIlluviumCreature::Attack()
 {
-	if (!IsTargetInRange)
+	if (!IsTargetInRange || !EnemyTarget)
 		return;
 
 	UGameplayStatics::ApplyDamage(EnemyTarget, AttackStrength, nullptr, this, UDamageType::StaticClass());
+
+	if (EnemyTarget->IsDead)
+		EnemyTarget = nullptr;
 
 	UE_LOG(LogTemp, Warning, TEXT("Attacking"))
 }

@@ -20,10 +20,12 @@ class AIlluviumCreature : public AActor
 	
 public:	
 	AIlluviumCreature();
+	void InitCreature(ECreatureTeam NewTeam, int RandomSeed);
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly) UStaticMeshComponent* CreatureMesh = nullptr;
+	UPROPERTY(EditDefaultsOnly) UMaterialInstance* RedMaterial = nullptr;
+	UPROPERTY(EditDefaultsOnly) UMaterialInstance* BlueMaterial = nullptr;
 
-	UPROPERTY(BlueprintReadOnly, EditAnywhere) ECreatureTeam Team = ECreatureTeam::TeamBlue;
 	UPROPERTY(EditDefaultsOnly) int MaxHealth = 10;
 	// Measured in Grid Squares
 	UPROPERTY(EditDefaultsOnly) int AttackDistance = 2;
@@ -32,19 +34,23 @@ public:
 
 	// Unreal Engine function from AActor
 	float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;
-	
-	void SetGridRef();
 
 	// Getter functions
 	FVector2D GetCoordinates();
 
 protected:
 	virtual void BeginPlay() override;
-	
-	// Upropertys have to be at least protected
 
 private:
+	ECreatureTeam Team = ECreatureTeam::TeamBlue;
 	UFUNCTION() void OnTimeStep();
+
+	// Initial setup functions
+	void SetTeam(ECreatureTeam NewTeam);
+	void SetRandomSeed(int Seed);
+	void SetInitialLocation();
+	void SetGridRef();
+	void SetAttackStrength();
 
 	// Target finding
 	AIlluviumCreature* EnemyTarget = nullptr;
@@ -55,7 +61,7 @@ private:
 	void MoveTowardsTarget();
 
 	// Attack
-	float AttackStrength = -1;	
+	int AttackStrength = -1;	
 	void Attack();
 
 	// Health and Death
